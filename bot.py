@@ -162,6 +162,28 @@ def run_scheduler():
 # Команда для ручной проверки
 @bot.message_handler(commands=["start"])
 def start(message):
+    current_time = time.time()
+
+    # Проверяем, прошло ли время задержки
+    time_left = team_data["cooldown"] - (current_time - team_data["last_command_time"])
+
+    if time_left > 0:
+        msg = bot.send_message(message.chat.id, f"⏳ Подождите {int(time_left)} секунд перед повторным вызовом команды.")
+
+        while time_left > 0:
+            time.sleep(1)
+            time_left -= 1
+            try:
+                bot.edit_message_text(f"⏳ Подождите {int(time_left)} секунд перед повторным вызовом команды.",
+                                      message.chat.id, msg.message_id)
+            except Exception:
+                break
+
+        bot.edit_message_text(generate_schedule(), message.chat.id, msg.message_id)
+        return
+
+    team_data["last_command_time"] = current_time
+
     msg = generate_schedule()
     bot.send_message(message.chat.id, msg, parse_mode="Markdown")
 
