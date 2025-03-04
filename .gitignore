@@ -1,0 +1,4 @@
+data/team.json
+*.log
+.venv
+.env
