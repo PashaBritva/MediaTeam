@@ -30,6 +30,9 @@ locale.setlocale(
 # Инициализация бота
 bot = telebot.TeleBot(os.getenv("TELEGRAM_TOKEN"))
 
+current_time = time.time()
+time_left = team_data["cooldown"] - (current_time - team_data["last_command_time"])
+
 # Функция для сохранения данных
 def save_data():
     with open("data/team.json", "w", encoding="utf-8") as file:
@@ -134,14 +137,14 @@ def generate_schedule():
     message = (
         f"📅 Расписание на {date_str}:\n\n"
         f"  📝 Оператор слов:\n"
-        f"      ● {word_operator.split("_")[1]} ({word_operator.split("_")[0]})\n\n"
+        f"      ● {word_operator.split("_")[1]} (*{word_operator.split("_")[0]}*)\n\n"
         f"  🎤 Операторы:\n"
-        f"      ● {operators[0].split('_')[1]} ({operators[0].split('_')[0]})\n"
-        f"      ● {operators[1].split('_')[1]} ({operators[1].split('_')[0]})\n\n"
+        f"      ● {operators[0].split('_')[1]} (*{operators[0].split('_')[0]}*)\n"
+        f"      ● {operators[1].split('_')[1]} (*{operators[1].split('_')[0]}*)\n\n"
         f"  🎧 Звукорежиссер:\n"
-        f"      ● {sound_operator[1]} ({sound_operator[0]})\n\n"
+        f"      ● {sound_operator[1]} (*{sound_operator[0]}*)\n\n"
         f"  🎥 Видеорежиссер:\n"
-        f"      ● {video_operator[1]} ({video_operator[0]})\n"
+        f"      ● {video_operator[1]} (*{video_operator[0]}*)\n"
     )
     return message
 
@@ -160,32 +163,32 @@ def run_scheduler():
         time.sleep(3)
 
 # Команда для ручной проверки
-@bot.message_handler(commands=["start"])
+@bot.message_handler(commands=["start", "shed"])
 def start(message):
-    current_time = time.time()
+    global current_time, time_left
+    logging.info(bot.get_chat_member(os.getenv("GROUP_ID"), message.from_user.id))
 
-    # Проверяем, прошло ли время задержки
-    time_left = team_data["cooldown"] - (current_time - team_data["last_command_time"])
+    if str(message.chat.id) == str(os.getenv("GROUP_ID")):
+        if time_left > 0:
+            msg = bot.send_message(message.chat.id,
+                                   f"⏳ Подождите {int(time_left)} секунд перед повторным вызовом команды.")
 
-    if time_left > 0:
-        msg = bot.send_message(message.chat.id, f"⏳ Подождите {int(time_left)} секунд перед повторным вызовом команды.")
+            while time_left > 0:
+                time.sleep(1)
+                time_left -= 1
+                try:
+                    bot.edit_message_text(f"⏳ Подождите {int(time_left)} секунд перед повторным вызовом команды.",
+                                          message.chat.id, msg.message_id)
+                except Exception:
+                    break
 
-        while time_left > 0:
-            time.sleep(1)
-            time_left -= 1
-            try:
-                bot.edit_message_text(f"⏳ Подождите {int(time_left)} секунд перед повторным вызовом команды.",
-                                      message.chat.id, msg.message_id)
-            except Exception:
-                break
+            bot.edit_message_text(generate_schedule(), message.chat.id, msg.message_id, parse_mode="Markdown")
+            return
 
-        bot.edit_message_text(generate_schedule(), message.chat.id, msg.message_id)
-        return
+        team_data["last_command_time"] = current_time
 
-    team_data["last_command_time"] = current_time
-
-    msg = generate_schedule()
-    bot.send_message(message.chat.id, msg, parse_mode="Markdown")
+        msg = generate_schedule()
+        bot.send_message(message.chat.id, msg, parse_mode="Markdown")
 
 # Запуск бота
 if __name__ == "__main__":
