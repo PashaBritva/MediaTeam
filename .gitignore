@@ -2,3 +2,4 @@ data/team.json
 *.log
 .venv
 .env
+.idea
